@@ -1,0 +1,16 @@
+{
+  "name": "Create App Shortcut Ext",
+  "version": "0.1",
+  "description": "Extra functionality for creating app shortcut.",
+  "permissions": ["storage", "management", "activeTab", "tabs"],
+  "browser_action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "128": "images/icon128.png"
+    }
+  },
+  "icons": {
+    "128": "images/icon128.png"
+  },
+  "manifest_version": 2
+}

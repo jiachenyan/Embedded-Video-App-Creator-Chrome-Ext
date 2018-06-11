@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<style>
+			body {
+				margin: 40px;
+			}
+
+			.section {
+				padding-bottom: 16px;
+				margin-bottom: 16px;
+				border-bottom: 1px solid #afafaf;
+			}
+
+			.section:last-child {
+				padding-bottom: 0;
+				margin-bottom: 0;
+				border-bottom: 0;
+			}
+
+			input {
+				margin: 4px 0;
+				height: 16px;
+			}
+
+			input[type="submit"] {
+				height: 20px;
+			}
+
+			input[type="checkbox"] {
+				margin: 4px;
+				vertical-align: middle;
+			}
+		</style>
+		<script src="popup.js"></script>
+	</head>
+
+	<body>
+		<div class="section" id="create_page_app_container" hidden>
+			<h3 id="create_page_app_head"></h3>
+			<form id="create_page_specfic_app">
+				<label for="autoplay">Autoplay</label>
+				<input type="checkbox" name="autoplay">
+				<br>
+
+				<label for="closeTab">Close Tab</label>
+				<input type="checkbox" name="closeTab">
+				<br>
+
+				<input type="submit" name="Create App">
+			</form>
+		</div>
+
+		<div class="section" >
+			<h3>Create App from URL</h3>
+			<form id="create_custom_app">
+				<input type="url" name="url" placeholder="URL" required>
+				<input type="text" name="title" placeholder="Title" required>
+
+				<label for="createShortcut">Create Shortcuts</label>
+				<input type="checkbox" name="createShortcut">
+				<br>
+
+				<input type="submit" name="Create App">
+			</form>
+		</div>
+
+		<div class="section" >
+			<button id="chrome_apps">Open Chrome Apps</button>
+		</div>
+	</body>
+</html>
