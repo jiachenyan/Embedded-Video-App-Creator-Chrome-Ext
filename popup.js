@@ -1,11 +1,6 @@
 'use strict'
 
-let tabInfo = {}
-let userSettings = {
-	closeTab: true,
-	autoplay: true,
-	createShortcut: false
-}
+let userSettings = { closeTab: false }
 
 function formDataToObj(submitEvt) {
 	var formData = {}
@@ -20,35 +15,16 @@ function paramStringToObj(paramString) {
 	return JSON.parse(`{"${decodeURI(paramString).replace(/"/g, '\\"').replace(/&/g, '","').replace(/=/g,'":"')}"}`)
 }
 
-function launchAppAndClose(extInfo, closeTab = false) {
-	chrome.storage.local.set(userSettings)
-	chrome.management.launchApp(extInfo.id)
-	if (closeTab) chrome.tabs.getSelected(function(tab) { chrome.tabs.remove(tab.id) })
-	// window.close()
-}
-
-function createApp(url, title, formData = {}, appInfo = {}) {
+function createMinimalWindow(url, supported = false, formData = {}) {
 	// sync new settings
 	for (let key of Object.keys(userSettings)) { if (formData.hasOwnProperty(key)) userSettings[key] = formData[key]  }
 
-	// supported app settings
-	let createShortcut = formData.createShortcut
-	let closeTab = false
-	if (!!Object.keys(appInfo).length) {
-		createShortcut = false       // no shortcut for supported app
-		closeTab = formData.closeTab // allow close tab only on supported app
+	let closeTab = true
+	if (!supported) closeTab = formData.closeTab // allow close tab setting only for custom urls
 
-		// add autoplay to url
-		url += url.includes('?') ? '&' : '?'
-		url += 'autoplay='
-		url += formData.autoplay ? appInfo.autoplayTrue : appInfo.autoplayFalse
-	}
-
-	chrome.management.generateAppForLink(url, title, function(extInfo) {
-		if (createShortcut) {
-			chrome.management.createAppShortcut(extInfo.id, function() { launchAppAndClose(extInfo, closeTab) })
-		} else { launchAppAndClose(extInfo, closeTab) }
-	})
+	chrome.windows.create({ url: url, type: 'popup'}, function(win) { })
+	chrome.storage.local.set(userSettings)
+	if (closeTab) chrome.tabs.getSelected(function(tab) { chrome.tabs.remove(tab.id) })
 }
 
 // Convert urls
@@ -59,52 +35,31 @@ function createApp(url, title, formData = {}, appInfo = {}) {
 // https://www.youtube.com/watch?v=LQ6A2C20PA4&t=267s&index=5&list=PLRQGRBgN_EnrzdGqBL9mP7crrIWd1zM6D
 // To:
 // https://www.youtube.com/embed/LQ6A2C20PA4?list=PLRQGRBgN_EnrzdGqBL9mP7crrIWd1zM6D
-function generateYoutubeAppInfo() {
-	if (tabInfo.path == '/watch' && tabInfo.paramString) {
-		let params  = paramStringToObj(tabInfo.paramString)
-		let url     = `https://www.youtube.com/embed/${params.v}`
-		if (params.list) url += `?list=${params.list}`
-
-		return { url: url, appText: 'Youtube Video', autoplayTrue: '1', autoplayFalse: '0'}
-	}
-	null
+function generateYoutubePageUrl(tabInfo) {
+	if (tabInfo.path != '/watch' || !tabInfo.paramString) return null
+	let params  = paramStringToObj(tabInfo.paramString)
+	let url     = `https://www.youtube.com/embed/${params.v}?autoplay=1`
+	if (params.list) url += `&list=${params.list}`
+	return url
 }
 
 // Convert urls
 // https://www.twitch.tv/videos/270836311
 // To:
-// https://player.twitch.tv/?video=v270836311
+// https://player.twitch.tv/?video=270836311
 //
 // https://www.twitch.tv/uberhaxornova
 // To: 
-// https://player.twitch.tv/?channel=uberhaxornova
+// https://player.twitch.tv/?channel=uberhaxornova&layout=video
 // 
-function generateTwitchAppInfo() {
-	let baseTwitchInfo = { url: 'https://player.twitch.tv/', autoplayTrue: 'true', autoplayFalse: 'false' }
-
-	if (/^\/videos\/[0-9]+/g.test(tabInfo.path)) {
-		baseTwitchInfo.url    += `?video=v${tabInfo.path.substring(1).split('/')[1]}`
-		baseTwitchInfo.appText = 'Twitch Video'
-
-	} else if (/^\/[^\/.]+$/g.test(tabInfo.path)) { 
-		baseTwitchInfo.url    += `?channel=${tabInfo.path.substring(1)}`
-		baseTwitchInfo.appText = 'Twitch Channel'
-
-	} else { return null }
-	return baseTwitchInfo
+function generateTwitchPageUrl(tabInfo) {
+	let url = 'https://player.twitch.tv/?'
+	if (/^\/videos\/[0-9]+/g.test(tabInfo.path)) return `${url}video=${tabInfo.path.substring(1).split('/')[1]}`
+	if (/^\/[^\/.]+$/g.test(tabInfo.path)) return `${url}channel=${tabInfo.path.substring(1)}&layout=video`
+	return null
 }
 
-function loadSupportedAppSection(appInfo) {
-	document.getElementById('create_page_specfic_app').addEventListener('submit', function(e) {
-		e.preventDefault()
-		createApp(appInfo.url, tabInfo.title, formDataToObj(e), appInfo)
-	})
-
-	document.getElementById('create_page_app_head').innerHTML = `Create Minimal App for ${appInfo.appText}`
-	document.getElementById('create_page_app_container').hidden = false
-}
-
-function loadTabInfo() {
+function loadTabInfo(nonSupportedPageCallback) {
 	chrome.tabs.executeScript(null, {
 		code: `
 			var tabInfo = {
@@ -119,34 +74,30 @@ function loadTabInfo() {
 		`
 	}, function(res) {
 		if (!res) return
-		tabInfo = res[0]
+		let tabInfo = res[0]
 
-		let appInfo
+		let supportedPageUrl
 		switch(tabInfo.host) {
 			case 'www.twitch.tv':
-				if (tabInfo.isTwitchChannel) appInfo = generateTwitchAppInfo()
+				if (tabInfo.isTwitchChannel) supportedPageUrl = generateTwitchPageUrl(tabInfo)
 				break
 			case 'www.youtube.com':
-				appInfo = generateYoutubeAppInfo()
+				supportedPageUrl = generateYoutubePageUrl(tabInfo)
 				break
 		}
 
-		if (appInfo) loadSupportedAppSection(appInfo)
+		if (supportedPageUrl) return createMinimalWindow(supportedPageUrl, true)
+		nonSupportedPageCallback()
 	})
 }
 
 function loadCreateCustomAppSection() {
-	document.getElementById('create_custom_app').addEventListener('submit', function(e) {
+	document.getElementById('create_custom_window').addEventListener('submit', function(e) {
 		e.preventDefault()
 		let formData = formDataToObj(e)
-		createApp(formData.url, formData.title, formData)
+		createMinimalWindow(formData.url, false, formData)
 	})
-}
-
-function loadChromeAppSection() {
-	document.getElementById('chrome_apps').addEventListener('click', function() {
-		chrome.tabs.create({ url: 'chrome://apps' }, function() { window.close() })
-	})
+	document.getElementById('create_custom_window_container').hidden = false
 }
 
 function loadUserSettings() {
@@ -157,9 +108,7 @@ function loadUserSettings() {
 
 function initPopup() {
 	loadUserSettings()
-	loadChromeAppSection()
-	loadCreateCustomAppSection()
-	loadTabInfo()
+	loadTabInfo(function() { loadCreateCustomAppSection()	})	
 }
 
 chrome.storage.local.get(Object.keys(userSettings), function(res) {
