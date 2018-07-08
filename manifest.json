@@ -1,7 +1,7 @@
 {
   "name": "Create App Shortcut Ext",
   "version": "0.2",
-  "description": "Extra functionality for creating app shortcut.",
+  "description": "Launch pages in mininal window mode.",
   "permissions": ["storage", "activeTab"],
   "browser_action": {
     "default_popup": "popup.html",
